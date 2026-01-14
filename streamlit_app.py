@@ -1,59 +1,72 @@
 import streamlit as st
 import google.generativeai as genai
 
-# Configuración de la página
-st.set_page_config(page_title="Gemini Chatbot", page_icon="♊")
+# 1. Configuración de la página
+st.set_page_config(page_title="Nexos AI", page_icon="♊")
 
-st.title("♊ Mi IA Gemini")
-st.write(
-    "Este es un chatbot que utiliza el modelo **Gemini 1.5 Flash** de Google. "
-    "He configurado tu API Key directamente en el código."
-)
+# Título de la aplicación
+st.title("🤖 Nexos AI")
+st.markdown("---")
 
-# Configuración de la API Key que proporcionaste
-# Nota: Recuerda borrar el mensaje anterior donde pusiste la clave por seguridad.
-GEMINI_API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
-genai.configure(api_key=GEMINI_API_KEY)
+# 2. Configuración de la API Key
+# He puesto la clave que compartiste, pero si falla, recuerda crear una nueva en Google AI Studio
+API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
+genai.configure(api_key=API_KEY)
 
-# Inicializar el modelo
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 3. Inicializar el modelo con manejo de errores
+try:
+    # Usamos la ruta completa del modelo para evitar el error 'NotFound'
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
+except Exception as e:
+    st.error(f"Error al cargar el modelo: {e}")
 
-# El historial de Gemini usa "model" en vez de "assistant"
+# 4. Inicializar el historial del chat (Streamlit usa roles 'user' y 'assistant')
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrar mensajes previos
+# Mostrar mensajes previos del historial
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Entrada de chat
+# 5. Lógica del Chat
 if prompt := st.chat_input("¿En qué puedo ayudarte?"):
-
-    # Mostrar mensaje del usuario
+    
+    # Mostrar y guardar mensaje del usuario
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generar respuesta
+    # Generar respuesta de la IA
     with st.chat_message("assistant"):
-        # Preparamos el historial para Gemini (cambiando assistant por model)
-        history_for_gemini = [
-            {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
-            for m in st.session_state.messages[:-1]
-        ]
+        message_placeholder = st.empty() # Espacio para el efecto de escritura
+        full_response = ""
         
-        chat = model.start_chat(history=history_for_gemini)
-        
-        # Usamos stream para que la respuesta aparezca poco a poco
-        response = chat.send_message(prompt, stream=True)
-        
-        # Función para iterar sobre el stream y mostrarlo en Streamlit
-        def stream_generator():
-            for chunk in response:
-                yield chunk.text
+        try:
+            # PREPARACIÓN DEL HISTORIAL (Crucial para Gemini)
+            # Convertimos 'assistant' de Streamlit a 'model' de Google
+            history_gemini = []
+            for m in st.session_state.messages[:-1]:
+                role = "user" if m["role"] == "user" else "model"
+                history_gemini.append({"role": role, "parts": [m["content"]]})
 
-        full_response = st.write_stream(stream_generator())
-    
-    # Guardar la respuesta completa en el historial
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+            # Iniciar chat con memoria
+            chat = model.start_chat(history=history_gemini)
+            
+            # Enviar mensaje con streaming
+            response = chat.send_message(prompt, stream=True)
+            
+            for chunk in response:
+                if chunk.text:
+                    full_response += chunk.text
+                    message_placeholder.markdown(full_response + "▌")
+            
+            message_placeholder.markdown(full_response)
+            
+            # Guardar respuesta en el historial
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+        except Exception as e:
+            st.error(f"Error en la API: {e}")
+            if "NotFound" in str(e):
+                st.info("💡 Tip: Revisa si tu API Key está activa o prueba cambiando el nombre del modelo a 'gemini-1.5-pro'.")
