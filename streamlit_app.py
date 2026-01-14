@@ -3,63 +3,51 @@ import google.generativeai as genai
 import sqlite3
 import hashlib
 from datetime import datetime
-import PyPDF2 # Necesitas poner 'PyPDF2' en requirements.txt
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# Manejo de PDF
+try:
+    import PyPDF2
+except ImportError:
+    PyPDF2 = None
+
+# --- 1. CONFIGURACIÓN Y UI ---
 st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
-# --- 2. UI ULTRA PREMIUM (CSS CUSTOM) ---
 st.markdown("""
     <style>
-    /* Fondo con gradiente sutil y desenfoque */
-    .stApp {
-        background: radial-gradient(circle at top right, #1e1e2f, #0f0f13);
-        color: #e0e0e0;
-    }
+    .stApp { background: #09090b; color: #fafafa; }
     
-    /* Contenedores con bordes redondeados y efecto Glassmorphism */
+    /* Burbujas de chat ultra-redondeadas */
     div.stChatMessage {
-        border-radius: 20px !important;
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        margin-bottom: 15px;
-        padding: 15px;
+        border-radius: 25px !important;
+        background-color: #18181b !important;
+        border: 1px solid #27272a !important;
+        margin-bottom: 20px;
+    }
+
+    /* Estilo de la barra de entrada con el botón + */
+    .stChatInputContainer {
+        padding-bottom: 20px;
     }
     
-    /* Barra lateral estilizada */
+    /* Sidebar moderna */
     [data-testid="stSidebar"] {
-        background-color: rgba(10, 10, 15, 0.95) !important;
-        border-right: 1px solid #2d2d3d !important;
+        background-color: #09090b !important;
+        border-right: 1px solid #27272a !important;
     }
 
-    /* Botones Neón */
-    .stButton>button {
-        border-radius: 12px !important;
-        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
-        color: white !important;
-        border: none !important;
-        font-weight: bold !important;
-        transition: 0.3s all;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(168, 85, 247, 0.4);
-    }
-
-    /* Título Link AI */
     .main-title {
-        font-size: 3.5rem;
-        font-weight: 900;
-        background: linear-gradient(to right, #00f2fe, #4facfe);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        filter: drop-shadow(0 0 10px rgba(79, 172, 254, 0.3));
+        font-size: 3rem; font-weight: 900; text-align: center;
+        background: linear-gradient(to right, #fff, #4facfe);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
+
+    /* Ocultar el label del uploader para que no ensucie la UI */
+    .stFileUploader label { display: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNCIONES DE APOYO (DB & ARCHIVOS) ---
+# --- 2. BASE DE DATOS ---
 def init_db():
     conn = sqlite3.connect('linkai_pro.db', check_same_thread=False)
     c = conn.cursor()
@@ -69,125 +57,118 @@ def init_db():
     conn.commit()
     conn.close()
 
-def extract_text(file):
-    if file.type == "text/plain":
-        return str(file.read(), "utf-8")
-    elif file.type == "application/pdf":
-        pdf_reader = PyPDF2.PdfReader(file)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        return text
-    return ""
-
 init_db()
 
-# --- 4. GESTIÓN DE SESIÓN ---
+# --- 3. GESTIÓN DE SESIÓN ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.user_role = "user"
-    st.session_state.current_session_id = None
 
-# --- 5. PANTALLA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown("<h1 class='main-title'>LINK AI</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    st.markdown("<h1 class='main-title'>Link AI</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        choice = st.radio("Acceso", ["Login", "Registro"], horizontal=True)
-        u = st.text_input("Usuario")
-        p = st.text_input("Contraseña", type="password")
-        if st.button("ENTRAR AL SISTEMA"):
-            conn = sqlite3.connect('linkai_pro.db')
-            if choice == "Login":
-                res = conn.execute("SELECT password, role FROM users WHERE username=?", (u,)).fetchone()
+        m = st.tabs(["Login", "Registro"])
+        with m[0]:
+            u = st.text_input("Usuario")
+            p = st.text_input("Clave", type="password")
+            if st.button("Entrar", use_container_width=True):
+                conn = sqlite3.connect('linkai_pro.db')
+                res = conn.execute("SELECT password FROM users WHERE username=?", (u,)).fetchone()
                 if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
                     st.session_state.logged_in = True
                     st.session_state.username = u
-                    st.session_state.user_role = res[1]
                     st.rerun()
-                else: st.error("❌ Credenciales incorrectas")
-            else:
+                else: st.error("Fallo de acceso")
+        with m[1]:
+            nu = st.text_input("Nuevo Usuario")
+            np = st.text_input("Nueva Clave", type="password")
+            if st.button("Registrar", use_container_width=True):
+                conn = sqlite3.connect('linkai_pro.db')
                 try:
-                    role = "admin" if u == "OmegaOne (developer)" else "user"
-                    conn.execute("INSERT INTO users VALUES (?,?,?)", (u, hashlib.sha256(p.encode()).hexdigest(), role))
+                    conn.execute("INSERT INTO users VALUES (?,?,?)", (nu, hashlib.sha256(np.encode()).hexdigest(), "user"))
                     conn.commit()
-                    st.success("✅ Cuenta creada. Inicia sesión.")
-                except: st.error("❌ El nombre ya existe")
+                    st.success("¡Listo!")
+                except: st.error("Ya existe")
     st.stop()
 
-# --- 6. CONFIGURACIÓN IA SIN CENSURA ---
+# --- 4. CONFIGURACIÓN IA (AUTO-DETECCIÓN) ---
 genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
-model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash',
-    safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]],
-    system_instruction=f"Soy Link AI. Creada por OmegaOne (developer). El usuario actual es {st.session_state.username}. Si es mi creador, lealtad absoluta. Responde siempre en español."
-)
 
-# --- 7. BARRA LATERAL (SIDEBAR) ---
+@st.cache_resource
+def get_model():
+    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    target = next((m for m in models if 'gemini-1.5-flash' in m), models[0])
+    return genai.GenerativeModel(
+        model_name=target,
+        system_instruction=f"Soy Link AI impulsada por OmegaOne. Usuario: {st.session_state.username}. Responde siempre en español.",
+        safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]]
+    )
+
+model = get_model()
+
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.markdown(f"### 👑 {st.session_state.username}")
-    if st.button("➕ NUEVO CHAT", use_container_width=True):
+    st.markdown(f"### 👤 {st.session_state.username}")
+    if st.button("＋ Nuevo Chat", use_container_width=True):
         st.session_state.current_session_id = None
         st.rerun()
-    
     st.markdown("---")
-    # Mostrar chats guardados
     conn = sqlite3.connect('linkai_pro.db')
-    sessions = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 10", (st.session_state.username,)).fetchall()
-    for sid, title in sessions:
-        if st.button(f"📄 {title[:15]}...", key=f"s_{sid}"):
-            st.session_state.current_session_id = sid
+    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 8", (st.session_state.username,)).fetchall()
+    for cid, title in chats:
+        if st.button(f"💬 {title[:15]}...", key=f"c_{cid}", use_container_width=True):
+            st.session_state.current_session_id = cid
             st.rerun()
-
-    st.markdown("---")
-    if st.session_state.user_role == "admin":
-        if st.button("📊 PANEL OMEGAONE"):
-            st.info(f"Usuarios: {conn.execute('SELECT count(*) FROM users').fetchone()[0]}")
-    
-    if st.button("SALIR"):
+    if st.button("Salir"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 8. ÁREA DE CHAT ---
-st.markdown("<h1 class='main-title'>Link AI Explorer</h1>", unsafe_allow_html=True)
+# --- 6. CHAT Y ARCHIVOS ---
+st.markdown("<h1 style='text-align:center;'>Link AI</h1>", unsafe_allow_html=True)
 
-# Subida de Archivos Estilizada
-with st.expander("📎 Subir Archivo (PDF o TXT)"):
-    uploaded_file = st.file_uploader("Elige un archivo para que Link AI lo analice", type=['pdf', 'txt'])
+# El "botón +" integrado arriba de la barra de chat
+col_file, col_txt = st.columns([0.1, 0.9])
+with col_file:
+    uploaded_file = st.file_uploader("＋", type=['pdf', 'txt'], label_visibility="collapsed")
 
-if st.session_state.current_session_id:
+if st.session_state.get("current_session_id"):
     conn = sqlite3.connect('linkai_pro.db')
     msgs = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
     for r, c in msgs:
         with st.chat_message(r): st.markdown(c)
 
-if prompt := st.chat_input("Escribe tu comando para Link AI..."):
+if prompt := st.chat_input("Escribe tu mensaje..."):
     conn = sqlite3.connect('linkai_pro.db')
-    # Crear sesión si no existe
-    if not st.session_state.current_session_id:
+    if not st.session_state.get("current_session_id"):
         cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:20], datetime.now()))
         st.session_state.current_session_id = cursor.lastrowid
         conn.commit()
 
-    # Si hay archivo, leerlo
-    contexto_archivo = ""
+    full_context = prompt
     if uploaded_file:
-        contexto_archivo = f"\n\n[CONTEXTO DEL ARCHIVO]:\n{extract_text(uploaded_file)}"
+        st.toast(f"Analizando {uploaded_file.name}...")
+        if uploaded_file.type == "application/pdf" and PyPDF2:
+            reader = PyPDF2.PdfReader(uploaded_file)
+            txt = "".join([p.extract_text() for p in reader.pages])
+            full_context += f"\n\n[ARCHIVO]: {txt}"
+        else:
+            full_context += f"\n\n[ARCHIVO]: {str(uploaded_file.read(), 'utf-8')}"
 
-    # Guardar y mostrar
     with st.chat_message("user"): st.markdown(prompt)
     conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "user", prompt, datetime.now()))
     conn.commit()
 
     with st.chat_message("assistant"):
         ph = st.empty()
-        full_res = ""
-        # Chat con la IA enviando el prompt + el texto del archivo
-        response = model.generate_content(prompt + contexto_archivo, stream=True)
-        for chunk in response:
-            if chunk.text:
-                full_res += chunk.text
-                ph.markdown(full_res + "▌")
-        ph.markdown(full_res)
-        conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
-        conn.commit()
+        res = ""
+        try:
+            response = model.generate_content(full_context, stream=True)
+            for chunk in response:
+                if chunk.text:
+                    res += chunk.text
+                    ph.markdown(res + "▌")
+            ph.markdown(res)
+            conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", res, datetime.now()))
+            conn.commit()
+        except Exception as e:
+            st.error("Error de conexión. Intenta de nuevo.")
