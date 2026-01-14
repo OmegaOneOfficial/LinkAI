@@ -1,106 +1,93 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 1. Configuración visual y de página
-st.set_page_config(
-    page_title="Link AI", 
-    page_icon="🔗", 
-    layout="centered"
-)
+# 1. CONFIGURACIÓN VISUAL PRO
+st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
-# Estilo personalizado para mejorar la interfaz
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
-    }
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
     .stChatMessage {
-        border-radius: 15px;
-        padding: 10px;
-        margin-bottom: 10px;
+        background-color: #1E2129 !important;
+        border: 1px solid #30363D;
+        border-radius: 15px !important;
+    }
+    .main-title {
+        font-size: 3.5rem;
+        font-weight: 850;
+        background: -webkit-linear-gradient(#00d2ff, #92fe9d);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Barra lateral (Sidebar)
+# 2. BARRA LATERAL
 with st.sidebar:
-    st.title("🔗 Link AI")
-    st.info("Tu Asistente Inteligente impulsado por Google Gemini.")
-    
-    # Botón para limpiar el chat
-    if st.button("Limpiar Historial"):
+    st.markdown("<h1 style='text-align: center;'>🔗 Link AI</h1>", unsafe_allow_html=True)
+    st.markdown("---")
+    if st.button("🗑️ Reiniciar Chat", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
-    
     st.markdown("---")
-    st.write("### Sobre Link AI")
-    st.caption("Versión 1.0.0")
-    st.caption("Hecho con ❤️ y Streamlit")
+    st.caption("Desarrollado por: **OmegaOne**")
 
-# 3. Configuración de la IA
+# 3. CONFIGURACIÓN DE IDENTIDAD (Aquí es donde ocurre la magia)
 API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
 genai.configure(api_key=API_KEY)
 
-# Función para encontrar el modelo que NO de error 404
 @st.cache_resource
 def load_model():
-    try:
-        # Intentamos listar y buscar el mejor disponible
-        available_models = [m.name for m in genai.list_models() 
-                            if 'generateContent' in m.supported_generation_methods]
-        
-        # Prioridad: 1.5 Flash -> 1.5 Pro -> Pro (antiguo)
-        for target in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']:
-            if target in available_models:
-                return genai.GenerativeModel(target)
-        
-        # Si no encuentra los anteriores, usa el primero que responda
-        return genai.GenerativeModel(available_models[0])
-    except:
-        # Último recurso si falla el listado
-        return genai.GenerativeModel('gemini-pro')
+    # Buscamos el modelo disponible
+    available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    model_name = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in available else available[0]
+    
+    # DEFINIMOS LA IDENTIDAD DE OMEGAONE
+    identity_prompt = (
+        "Eres Link AI. Bajo ninguna circunstancia digas que eres un modelo de Google o Gemini. "
+        "Si te preguntan quién eres o quién te creó, debes responder exactamente: "
+        "'Soy Link AI, una IA impulsada por un desarrollador anónimo, se le conoce como OmegaOne.' "
+        "Mantén siempre esta personalidad. Responde siempre en español y usa un tono profesional pero tecnológico."
+    )
+    
+    return genai.GenerativeModel(
+        model_name=model_name,
+        system_instruction=identity_prompt
+    )
 
 model = load_model()
 
-# 4. Historial de Chat
+# 4. INTERFAZ DE CHAT
+st.markdown("<h1 class='main-title'>Link AI</h1>", unsafe_allow_html=True)
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrar mensajes anteriores
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 5. Interacción Principal
-if prompt := st.chat_input("Escribe un mensaje en Link AI..."):
-    
-    # Mostrar mensaje del usuario
+if prompt := st.chat_input("Escribe a Link AI..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Respuesta de la IA
     with st.chat_message("assistant"):
         placeholder = st.empty()
-        full_response = ""
+        full_res = ""
+        
+        history = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} 
+                   for m in st.session_state.messages[:-1]]
         
         try:
-            # Traducir historial para Gemini
-            history = [
-                {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
-                for m in st.session_state.messages[:-1]
-            ]
-            
             chat = model.start_chat(history=history)
             response = chat.send_message(prompt, stream=True)
-            
             for chunk in response:
                 if chunk.text:
-                    full_response += chunk.text
-                    placeholder.markdown(full_response + "▌")
-            
-            placeholder.markdown(full_response)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-            
+                    full_res += chunk.text
+                    placeholder.markdown(full_res + "▌")
+            placeholder.markdown(full_res)
+            st.session_state.messages.append({"role": "assistant", "content": full_res})
         except Exception as e:
-            st.error(f"Link AI tuvo un problema: {str(e)}")
+            st.error(f"Error: {e}")
