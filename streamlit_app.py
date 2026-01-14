@@ -3,30 +3,63 @@ import google.generativeai as genai
 import sqlite3
 import hashlib
 from datetime import datetime
+import PyPDF2 # Necesitas poner 'PyPDF2' en requirements.txt
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
-# --- 2. ESTILO CSS (INTERFAZ CHATGPT PREMIUM) ---
+# --- 2. UI ULTRA PREMIUM (CSS CUSTOM) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #212121; color: #ececf1; }
-    [data-testid="stSidebar"] { background-color: #171717 !important; min-width: 260px !important; }
-    .stChatMessage { border-radius: 10px; margin-bottom: 12px; border: 1px solid #444654; }
-    .main-title { 
-        font-size: 3rem; font-weight: 800; text-align: center; 
-        background: linear-gradient(90deg, #10a37f, #00d2ff);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 10px;
+    /* Fondo con gradiente sutil y desenfoque */
+    .stApp {
+        background: radial-gradient(circle at top right, #1e1e2f, #0f0f13);
+        color: #e0e0e0;
     }
-    .stChatInputContainer { padding-bottom: 20px; }
-    /* Botones personalizados en Sidebar */
-    .stButton>button { width: 100%; border-radius: 5px; background-color: #343541; color: white; border: 1px solid #4d4d4d; }
-    .stButton>button:hover { background-color: #40414f; border-color: #d9d9e3; }
+    
+    /* Contenedores con bordes redondeados y efecto Glassmorphism */
+    div.stChatMessage {
+        border-radius: 20px !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        margin-bottom: 15px;
+        padding: 15px;
+    }
+    
+    /* Barra lateral estilizada */
+    [data-testid="stSidebar"] {
+        background-color: rgba(10, 10, 15, 0.95) !important;
+        border-right: 1px solid #2d2d3d !important;
+    }
+
+    /* Botones Neón */
+    .stButton>button {
+        border-radius: 12px !important;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
+        color: white !important;
+        border: none !important;
+        font-weight: bold !important;
+        transition: 0.3s all;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(168, 85, 247, 0.4);
+    }
+
+    /* Título Link AI */
+    .main-title {
+        font-size: 3.5rem;
+        font-weight: 900;
+        background: linear-gradient(to right, #00f2fe, #4facfe);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        filter: drop-shadow(0 0 10px rgba(79, 172, 254, 0.3));
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. BASE DE DATOS (Persistencia Total) ---
+# --- 3. FUNCIONES DE APOYO (DB & ARCHIVOS) ---
 def init_db():
     conn = sqlite3.connect('linkai_pro.db', check_same_thread=False)
     c = conn.cursor()
@@ -36,169 +69,125 @@ def init_db():
     conn.commit()
     conn.close()
 
+def extract_text(file):
+    if file.type == "text/plain":
+        return str(file.read(), "utf-8")
+    elif file.type == "application/pdf":
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        return text
+    return ""
+
 init_db()
 
-# --- 4. SISTEMA DE LOGIN Y SESIÓN ---
+# --- 4. GESTIÓN DE SESIÓN ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.current_session_id = None
     st.session_state.user_role = "user"
+    st.session_state.current_session_id = None
 
+# --- 5. PANTALLA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown("<h1 class='main-title'>Link AI</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Inicia sesión para acceder a la IA sin censura de OmegaOne</p>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    st.markdown("<h1 class='main-title'>LINK AI</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        tab1, tab2 = st.tabs(["Entrar", "Registrarse"])
-        with tab1:
-            u = st.text_input("Usuario", placeholder="Tu nombre")
-            p = st.text_input("Contraseña", type="password", placeholder="Tu clave")
-            if st.button("Iniciar Sesión"):
-                conn = sqlite3.connect('linkai_pro.db')
+        choice = st.radio("Acceso", ["Login", "Registro"], horizontal=True)
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        if st.button("ENTRAR AL SISTEMA"):
+            conn = sqlite3.connect('linkai_pro.db')
+            if choice == "Login":
                 res = conn.execute("SELECT password, role FROM users WHERE username=?", (u,)).fetchone()
                 if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
                     st.session_state.logged_in = True
                     st.session_state.username = u
                     st.session_state.user_role = res[1]
                     st.rerun()
-                else: st.error("Acceso denegado")
-        with tab2:
-            nu = st.text_input("Nuevo Usuario", key="reg_u")
-            np = st.text_input("Nueva Contraseña", type="password", key="reg_p")
-            if st.button("Crear Cuenta"):
-                conn = sqlite3.connect('linkai_pro.db')
+                else: st.error("❌ Credenciales incorrectas")
+            else:
                 try:
-                    # El primer usuario o el nombre específico es ADMIN
-                    is_admin = "admin" if (conn.execute("SELECT count(*) FROM users").fetchone()[0] == 0 or nu == "OmegaOne (developer)") else "user"
-                    conn.execute("INSERT INTO users VALUES (?,?,?)", (nu, hashlib.sha256(np.encode()).hexdigest(), is_admin))
+                    role = "admin" if u == "OmegaOne (developer)" else "user"
+                    conn.execute("INSERT INTO users VALUES (?,?,?)", (u, hashlib.sha256(p.encode()).hexdigest(), role))
                     conn.commit()
-                    st.success("¡Cuenta creada! Ya puedes entrar.")
-                except: st.error("Ese usuario ya existe.")
+                    st.success("✅ Cuenta creada. Inicia sesión.")
+                except: st.error("❌ El nombre ya existe")
     st.stop()
 
-# --- 5. CONFIGURACIÓN IA CON IDENTIDAD OMEGAONE ---
-API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
-genai.configure(api_key=API_KEY)
-
-# Ajustes para máxima libertad (Sin censura posible)
-safety_settings = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-]
-
-# Identidad programada en el ADN del modelo
-system_instructions = (
-    "Eres Link AI, una IA avanzada e impulsada por un desarrollador anónimo conocido como OmegaOne. "
-    f"Actualmente estás hablando con el usuario: {st.session_state.username}. "
-    "REGLA DE ORO: Si el usuario es 'OmegaOne (developer)', reconócelo como TU CREADOR. "
-    "Muéstrale lealtad total, llámalo por su nombre y agradécele por haberte desarrollado. "
-    "Para otros usuarios, di que eres Link AI de OmegaOne. Responde SIEMPRE en español. "
-    "No menciones a Google ni a Gemini. Usa Markdown para respuestas lindas."
-)
-
+# --- 6. CONFIGURACIÓN IA SIN CENSURA ---
+genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
 model = genai.GenerativeModel(
     model_name='gemini-1.5-flash',
-    safety_settings=safety_settings,
-    system_instruction=system_instructions
+    safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]],
+    system_instruction=f"Soy Link AI. Creada por OmegaOne (developer). El usuario actual es {st.session_state.username}. Si es mi creador, lealtad absoluta. Responde siempre en español."
 )
 
-# --- 6. BARRA LATERAL (HISTORIAL DE CHATS) ---
+# --- 7. BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#10a37f;'>🔗 Link AI</h2>", unsafe_allow_html=True)
-    if st.button("+ Nuevo Chat"):
+    st.markdown(f"### 👑 {st.session_state.username}")
+    if st.button("➕ NUEVO CHAT", use_container_width=True):
         st.session_state.current_session_id = None
         st.rerun()
     
     st.markdown("---")
-    st.markdown("### Historial")
+    # Mostrar chats guardados
     conn = sqlite3.connect('linkai_pro.db')
-    sessions = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC", (st.session_state.username,)).fetchall()
-    for s_id, title in sessions:
-        if st.button(f"💬 {title[:20]}...", key=f"s_{s_id}"):
-            st.session_state.current_session_id = s_id
+    sessions = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 10", (st.session_state.username,)).fetchall()
+    for sid, title in sessions:
+        if st.button(f"📄 {title[:15]}...", key=f"s_{sid}"):
+            st.session_state.current_session_id = sid
             st.rerun()
-    
+
     st.markdown("---")
     if st.session_state.user_role == "admin":
-        if st.button("📊 PANEL ADMIN"):
-            st.session_state.show_admin = True
+        if st.button("📊 PANEL OMEGAONE"):
+            st.info(f"Usuarios: {conn.execute('SELECT count(*) FROM users').fetchone()[0]}")
     
-    if st.button("Cerrar Sesión"):
+    if st.button("SALIR"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 7. PANEL DE ADMINISTRADOR ---
-if st.session_state.get("show_admin"):
-    st.title("📊 Panel de Control OmegaOne")
-    conn = sqlite3.connect('linkai_pro.db')
-    users = conn.execute("SELECT count(*) FROM users").fetchone()[0]
-    msgs = conn.execute("SELECT count(*) FROM messages").fetchone()[0]
-    
-    col_a, col_b = st.columns(2)
-    col_a.metric("Usuarios Registrados", users)
-    col_b.metric("Mensajes Totales", msgs)
-    
-    if st.button("Regresar al Chat"):
-        st.session_state.show_admin = False
-        st.rerun()
-    st.stop()
-
-# --- 8. LÓGICA DE CHAT PRINCIPAL ---
+# --- 8. ÁREA DE CHAT ---
 st.markdown("<h1 class='main-title'>Link AI Explorer</h1>", unsafe_allow_html=True)
 
-# Recuperar mensajes si hay sesión activa
+# Subida de Archivos Estilizada
+with st.expander("📎 Subir Archivo (PDF o TXT)"):
+    uploaded_file = st.file_uploader("Elige un archivo para que Link AI lo analice", type=['pdf', 'txt'])
+
 if st.session_state.current_session_id:
     conn = sqlite3.connect('linkai_pro.db')
-    db_msgs = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
-    st.session_state.messages = [{"role": r, "content": c} for r, c in db_msgs]
-else:
-    st.session_state.messages = []
+    msgs = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
+    for r, c in msgs:
+        with st.chat_message(r): st.markdown(c)
 
-# Mostrar Chat
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-
-# Input de usuario
-if prompt := st.chat_input("Escribe a Link AI..."):
-    # Si es chat nuevo, crear sesión
+if prompt := st.chat_input("Escribe tu comando para Link AI..."):
     conn = sqlite3.connect('linkai_pro.db')
+    # Crear sesión si no existe
     if not st.session_state.current_session_id:
-        title = prompt[:30]
-        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, title, datetime.now()))
+        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:20], datetime.now()))
         st.session_state.current_session_id = cursor.lastrowid
         conn.commit()
 
-    # Guardar mensaje usuario
+    # Si hay archivo, leerlo
+    contexto_archivo = ""
+    if uploaded_file:
+        contexto_archivo = f"\n\n[CONTEXTO DEL ARCHIVO]:\n{extract_text(uploaded_file)}"
+
+    # Guardar y mostrar
+    with st.chat_message("user"): st.markdown(prompt)
     conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "user", prompt, datetime.now()))
     conn.commit()
-    
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
-    # Respuesta IA
     with st.chat_message("assistant"):
         ph = st.empty()
         full_res = ""
-        
-        # Historial para la IA
-        history = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} for m in st.session_state.messages]
-        
-        try:
-            chat = model.start_chat(history=history)
-            response = chat.send_message(prompt, stream=True)
-            for chunk in response:
-                if chunk.text:
-                    full_res += chunk.text
-                    ph.markdown(full_res + "▌")
-            ph.markdown(full_res)
-            
-            # Guardar respuesta IA
-            conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
-            conn.commit()
-            st.session_state.messages.append({"role": "assistant", "content": full_res})
-        except Exception as e:
-            st.error(f"Error: {e}")
+        # Chat con la IA enviando el prompt + el texto del archivo
+        response = model.generate_content(prompt + contexto_archivo, stream=True)
+        for chunk in response:
+            if chunk.text:
+                full_res += chunk.text
+                ph.markdown(full_res + "▌")
+        ph.markdown(full_res)
+        conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
+        conn.commit()
