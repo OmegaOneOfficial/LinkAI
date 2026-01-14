@@ -7,67 +7,114 @@ from datetime import datetime
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
-# --- 2. UI MINIMALISTA REFINADA ---
+# --- 2. CSS PARA IMITAR LA UI DE GEMINI ---
 st.markdown("""
     <style>
-    /* Fondo Gris Carbón */
+    /* Fondo Gris Oscuro / Negro */
     .stApp {
         background-color: #121212;
-        color: #E0E0E0;
-    }
-    
-    /* Brand Link AI arriba a la derecha */
-    .brand-top-right {
-        position: fixed;
-        top: 20px;
-        right: 160px; /* Ajustado para que no choque */
-        font-family: 'Inter', sans-serif;
-        font-weight: 700;
-        font-size: 1.1rem;
         color: #FFFFFF;
-        z-index: 1001;
-        opacity: 0.8;
     }
 
-    /* Botón Cerrar Sesión (Arriba a la Derecha) */
-    .logout-container {
+    /* Ocultar elementos nativos de Streamlit */
+    header, footer, #MainMenu {visibility: hidden;}
+    [data-testid="stHeader"] {display: none;}
+
+    /* BARRA SUPERIOR */
+    .header-container {
         position: fixed;
-        top: 15px;
-        right: 20px;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 20px;
+        background-color: #121212;
         z-index: 1000;
     }
-    
-    /* Botones Sidebar */
-    .stButton>button {
-        border-radius: 10px !important;
-        background-color: transparent !important;
-        border: 1px solid #444 !important;
-        color: #FFFFFF !important;
-        font-weight: 500 !important;
+    .brand-left {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #FFFFFF;
     }
-    
-    /* Icono de Enviar Blanco en el Chat Input */
-    .stChatInput button svg {
-        fill: white !important;
-        color: white !important;
-    }
-    
-    /* Burbujas de chat */
-    div.stChatMessage {
-        border-radius: 20px !important;
-        background-color: #1E1E1E !important;
-        border: 1px solid #2A2A2A !important;
-        margin-bottom: 15px;
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #0F0F0F !important;
-        border-right: 1px solid #252525 !important;
+    .chat-title-center {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #AAAAAA;
+        font-size: 0.9rem;
     }
 
-    /* Ocultar elementos de Streamlit */
-    #MainMenu, footer, header {visibility: hidden;}
+    /* BOTÓN LOGOUT (Top Right) */
+    .stButton>button[key="logout_btn"] {
+        background-color: transparent !important;
+        border: 1px solid #444 !important;
+        color: white !important;
+        border-radius: 20px !important;
+        padding: 2px 15px !important;
+    }
+
+    /* SIDEBAR CHIQUITA */
+    [data-testid="stSidebar"] {
+        width: 80px !important;
+        background-color: #0F0F0F !important;
+        border-right: none !important;
+    }
+    /* Botones Sidebar Cuadrados y Transparentes */
+    .stButton>button[key="new_chat_btn"], .stButton>button[key="list_chats_btn"] {
+        background-color: transparent !important;
+        border: none !important;
+        color: white !important;
+        font-size: 1.5rem !important;
+        width: 50px !important;
+        height: 50px !important;
+        margin: 10px auto !important;
+        display: block !important;
+    }
+
+    /* TEXTO SIN RECUADROS */
+    div.stChatMessage {
+        background-color: transparent !important;
+        border: none !important;
+        color: white !important;
+        margin-bottom: 5px;
+        padding: 0px 10% !important;
+    }
+    
+    /* BARRA DE ESCRITURA FLOTANTE */
+    .stChatInput {
+        position: fixed;
+        bottom: 50px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 60% !important;
+        background-color: #282828 !important; /* Gris */
+        border-radius: 30px !important;
+        border: 1px solid #3c3c3c !important;
+        z-index: 999;
+    }
+    .stChatInput textarea {
+        background-color: transparent !important;
+        color: white !important;
+    }
+    .stChatInput button {
+        background-color: transparent !important;
+        color: white !important;
+    }
+
+    /* TEXTO INFERIOR DE ADVERTENCIA */
+    .disclaimer {
+        position: fixed;
+        bottom: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.75rem;
+        color: #777;
+        text-align: center;
+        width: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -88,85 +135,79 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align:center; color:white; margin-top:10vh;'>LINK AI</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    st.markdown("<h1 style='text-align:center; margin-top:15vh;'>Link AI</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        tab_log, tab_reg = st.tabs(["Acceder", "Registrar"])
-        with tab_log:
-            u = st.text_input("Usuario")
-            p = st.text_input("Clave", type="password")
-            if st.button("LOG IN", use_container_width=True):
-                conn = sqlite3.connect('linkai_pro.db')
-                res = conn.execute("SELECT password FROM users WHERE username=?", (u,)).fetchone()
-                if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
-                    st.session_state.logged_in = True
-                    st.session_state.username = u
-                    st.rerun()
-                else: st.error("Error.")
-        with tab_reg:
-            nu = st.text_input("Nuevo Usuario")
-            np = st.text_input("Nueva Clave", type="password")
-            if st.button("REGISTRAR", use_container_width=True):
-                conn = sqlite3.connect('linkai_pro.db')
-                try:
-                    conn.execute("INSERT INTO users VALUES (?,?,?)", (nu, hashlib.sha256(np.encode()).hexdigest(), "user"))
-                    conn.commit()
-                    st.success("Listo.")
-                except: st.error("Existe.")
+        u = st.text_input("Usuario")
+        p = st.text_input("Clave", type="password")
+        if st.button("Log In", use_container_width=True):
+            conn = sqlite3.connect('linkai_pro.db')
+            res = conn.execute("SELECT password FROM users WHERE username=?", (u,)).fetchone()
+            if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
+                st.session_state.logged_in = True
+                st.session_state.username = u
+                st.rerun()
     st.stop()
 
-# --- HEADER FIJO ---
-st.markdown('<div class="brand-top-right">Link AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="logout-container">', unsafe_allow_html=True)
-if st.button("Cerrar Sesión", key="logout_btn"):
-    st.session_state.logged_in = False
-    st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
+# --- HEADER (Link AI, Título Chat, Logout) ---
+current_title = "Nueva conversación"
+if st.session_state.get("current_session_id"):
+    conn = sqlite3.connect('linkai_pro.db')
+    res = conn.execute("SELECT title FROM chat_sessions WHERE id=?", (st.session_state.current_session_id,)).fetchone()
+    if res: current_title = res[0]
 
-# --- 5. CONFIGURACIÓN IA (CORREGIDO A models/...) ---
-genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
+st.markdown(f"""
+    <div class="header-container">
+        <div class="brand-left">Link AI</div>
+        <div class="chat-title-center">{current_title}</div>
+        <div></div> </div>
+    """, unsafe_allow_html=True)
 
-# Aquí usamos el prefijo exacto para evitar errores de conexión
-MODEL_NAME = 'models/gemini-1.5-flash'
+# Botón Logout flotando a la derecha
+with st.container():
+    col_empty, col_btn = st.columns([0.9, 0.1])
+    with col_btn:
+        if st.button("Log Out", key="logout_btn"):
+            st.session_state.logged_in = False
+            st.rerun()
 
-model = genai.GenerativeModel(
-    model_name=MODEL_NAME,
-    system_instruction=f"Soy Link AI una IA impulsada por un desarrollador anonimo, se le conoce como OmegaOne. Hablo con {st.session_state.username}.",
-    safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]]
-)
-
-# --- 6. SIDEBAR ---
+# --- 5. SIDEBAR (Solo Iconos Cuadrados) ---
 with st.sidebar:
-    st.markdown("### 🔗 Link AI")
-    # Botón Nuevo Chat con icono grande
-    if st.button("＋", use_container_width=True, help="Nuevo Chat"):
+    # Botón Nuevo Chat (Cuadrado y Transparente)
+    if st.button("＋", key="new_chat_btn", help="Nuevo Chat"):
         st.session_state.current_session_id = None
         st.rerun()
     
-    st.markdown("---")
-    conn = sqlite3.connect('linkai_pro.db')
-    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 12", (st.session_state.username,)).fetchall()
-    for cid, title in chats:
-        # Icono de mensaje minimalista antes del texto
-        if st.button(f"󰭹 {title[:15]}...", key=f"c_{cid}", use_container_width=True):
-            st.session_state.current_session_id = cid
-            st.rerun()
+    # Botón Lista de Chats (3 líneas / menú)
+    show_list = st.toggle("☰", key="list_chats_btn", label_visibility="collapsed")
+    
+    if show_list:
+        st.markdown("---")
+        conn = sqlite3.connect('linkai_pro.db')
+        chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 8", (st.session_state.username,)).fetchall()
+        for cid, title in chats:
+            if st.button(f"{title[:15]}", key=f"c_{cid}", use_container_width=True):
+                st.session_state.current_session_id = cid
+                st.rerun()
 
-# --- 7. CHAT ---
+# --- 6. CHAT ---
+st.markdown("<br><br>", unsafe_allow_html=True) # Espacio para el header
+
 if st.session_state.get("current_session_id"):
     conn = sqlite3.connect('linkai_pro.db')
     msgs = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
     for r, c in msgs:
-        with st.chat_message(r): st.markdown(c)
-else:
-    # Pantalla de bienvenida minimalista
-    st.markdown(f"<div style='text-align:center; margin-top:25vh; color:#666;'><h2>Hola, {st.session_state.username}</h2><p>Inicia una conversación con Link AI</p></div>", unsafe_allow_html=True)
+        with st.chat_message(r):
+            st.markdown(c)
 
-# Entrada de chat con botón de enviar icono blanco
-if prompt := st.chat_input("Escribe a Link AI..."):
+# DISCLAIMER INFERIOR
+st.markdown('<div class="disclaimer">Link AI puede cometer errores, así que verifica sus respuestas.</div>', unsafe_allow_html=True)
+
+# INPUT FLOTANTE
+if prompt := st.chat_input("Escribe tu mensaje..."):
     conn = sqlite3.connect('linkai_pro.db')
     if not st.session_state.get("current_session_id"):
-        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:20], datetime.now()))
+        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:25], datetime.now()))
         st.session_state.current_session_id = cursor.lastrowid
         conn.commit()
 
@@ -174,14 +215,17 @@ if prompt := st.chat_input("Escribe a Link AI..."):
     conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "user", prompt, datetime.now()))
     conn.commit()
 
+    # RESPUESTA IA
+    genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
+    
     with st.chat_message("assistant"):
         ph = st.empty()
         full_res = ""
         try:
-            # Reconstruir historial (ventana de 8 mensajes)
-            hist_db = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC LIMIT 8", (st.session_state.current_session_id,)).fetchall()
+            # Ventana de contexto corta
+            hist_db = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC LIMIT 6", (st.session_state.current_session_id,)).fetchall()
             history = [{"role": "user" if r == "user" else "model", "parts": [c]} for r, c in hist_db[:-1]]
-            
             chat = model.start_chat(history=history)
             response = chat.send_message(prompt, stream=True)
             for chunk in response:
@@ -191,8 +235,5 @@ if prompt := st.chat_input("Escribe a Link AI..."):
             ph.markdown(full_res)
             conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
             conn.commit()
-        except Exception as e:
-            if "429" in str(e):
-                st.error("🚀 Límite alcanzado. Espera 60s.")
-            else:
-                st.error(f"Error: {e}")
+        except:
+            st.error("Error.")
