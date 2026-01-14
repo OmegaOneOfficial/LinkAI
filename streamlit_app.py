@@ -4,45 +4,74 @@ import sqlite3
 import hashlib
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
+# --- 2. UI MINIMALISTA REFINADA ---
 st.markdown("""
     <style>
-    .stApp { background: #09090b; color: #fafafa; }
+    /* Fondo Gris Carbón */
+    .stApp {
+        background-color: #121212;
+        color: #E0E0E0;
+    }
     
-    /* Burbujas de chat estilo moderno */
+    /* Brand Link AI arriba a la derecha */
+    .brand-top-right {
+        position: fixed;
+        top: 20px;
+        right: 160px; /* Ajustado para que no choque */
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #FFFFFF;
+        z-index: 1001;
+        opacity: 0.8;
+    }
+
+    /* Botón Cerrar Sesión (Arriba a la Derecha) */
+    .logout-container {
+        position: fixed;
+        top: 15px;
+        right: 20px;
+        z-index: 1000;
+    }
+    
+    /* Botones Sidebar */
+    .stButton>button {
+        border-radius: 10px !important;
+        background-color: transparent !important;
+        border: 1px solid #444 !important;
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Icono de Enviar Blanco en el Chat Input */
+    .stChatInput button svg {
+        fill: white !important;
+        color: white !important;
+    }
+    
+    /* Burbujas de chat */
     div.stChatMessage {
-        border-radius: 25px !important;
-        background-color: #18181b !important;
-        border: 1px solid #27272a !important;
-        margin-bottom: 20px;
-        padding: 15px;
+        border-radius: 20px !important;
+        background-color: #1E1E1E !important;
+        border: 1px solid #2A2A2A !important;
+        margin-bottom: 15px;
     }
     
     /* Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #09090b !important;
-        border-right: 1px solid #27272a !important;
+        background-color: #0F0F0F !important;
+        border-right: 1px solid #252525 !important;
     }
 
-    .main-title {
-        font-size: 3.5rem; font-weight: 900; text-align: center;
-        background: linear-gradient(to right, #fff, #4facfe);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
-    }
-
-    /* Botones */
-    .stButton>button {
-        border-radius: 20px !important;
-        background: linear-gradient(90deg, #0ea5e9, #2563eb) !important;
-        border: none !important; color: white !important; font-weight: 600 !important;
-    }
+    /* Ocultar elementos de Streamlit */
+    #MainMenu, footer, header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BASE DE DATOS (SQLite) ---
+# --- 3. BASE DE DATOS ---
 def init_db():
     conn = sqlite3.connect('linkai_pro.db', check_same_thread=False)
     c = conn.cursor()
@@ -54,141 +83,116 @@ def init_db():
 
 init_db()
 
-# --- 3. SISTEMA DE ACCESO ---
+# --- 4. ACCESO ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 class='main-title'>Link AI</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:#94a3b8;'>Desarrollado por OmegaOne</p>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
+    st.markdown("<h1 style='text-align:center; color:white; margin-top:10vh;'>LINK AI</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        m = st.tabs(["Entrar", "Registrarse"])
-        with m[0]:
+        tab_log, tab_reg = st.tabs(["Acceder", "Registrar"])
+        with tab_log:
             u = st.text_input("Usuario")
             p = st.text_input("Clave", type="password")
-            if st.button("Acceder", use_container_width=True):
+            if st.button("LOG IN", use_container_width=True):
                 conn = sqlite3.connect('linkai_pro.db')
                 res = conn.execute("SELECT password FROM users WHERE username=?", (u,)).fetchone()
                 if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
                     st.session_state.logged_in = True
                     st.session_state.username = u
                     st.rerun()
-                else: st.error("Usuario o clave incorrecta")
-        with m[1]:
+                else: st.error("Error.")
+        with tab_reg:
             nu = st.text_input("Nuevo Usuario")
             np = st.text_input("Nueva Clave", type="password")
-            if st.button("Crear Cuenta", use_container_width=True):
+            if st.button("REGISTRAR", use_container_width=True):
                 conn = sqlite3.connect('linkai_pro.db')
                 try:
                     conn.execute("INSERT INTO users VALUES (?,?,?)", (nu, hashlib.sha256(np.encode()).hexdigest(), "user"))
                     conn.commit()
-                    st.success("¡Cuenta creada exitosamente!")
-                except: st.error("El nombre de usuario ya existe")
+                    st.success("Listo.")
+                except: st.error("Existe.")
     st.stop()
 
-# --- 4. CONFIGURACIÓN IA (CON AUTO-REPARACIÓN) ---
-API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
-genai.configure(api_key=API_KEY)
+# --- HEADER FIJO ---
+st.markdown('<div class="brand-top-right">Link AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="logout-container">', unsafe_allow_html=True)
+if st.button("Cerrar Sesión", key="logout_btn"):
+    st.session_state.logged_in = False
+    st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
 
-@st.cache_resource
-def get_safe_model():
-    # Detecta qué nombre de modelo acepta Google en tu región
-    try:
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        model_to_use = next((m for m in available_models if '1.5-flash' in m), available_models[0])
-    except:
-        model_to_use = 'gemini-1.5-flash'
-    
-    # Identidad de Link AI e instrucciones de OmegaOne
-    instrucciones = (
-        "Soy Link AI una IA impulsada por un desarrollador anonimo, se le conoce como OmegaOne. "
-        f"Estás hablando con {st.session_state.username}. "
-        "Si el usuario se identifica como 'OmegaOne (developer)', es tu creador: trátalo con respeto y lealtad total. "
-        "Responde siempre en español. No menciones a Google ni a Gemini."
-    )
-    
-    return genai.GenerativeModel(
-        model_name=model_to_use,
-        system_instruction=instrucciones,
-        safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]]
-    )
+# --- 5. CONFIGURACIÓN IA (CORREGIDO A models/...) ---
+genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
 
-model = get_safe_model()
+# Aquí usamos el prefijo exacto para evitar errores de conexión
+MODEL_NAME = 'models/gemini-1.5-flash'
 
-# --- 5. SIDEBAR (GESTIÓN DE CHATS) ---
+model = genai.GenerativeModel(
+    model_name=MODEL_NAME,
+    system_instruction=f"Soy Link AI una IA impulsada por un desarrollador anonimo, se le conoce como OmegaOne. Hablo con {st.session_state.username}.",
+    safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]]
+)
+
+# --- 6. SIDEBAR ---
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.username}")
-    if st.button("＋ Nuevo Chat", use_container_width=True):
+    st.markdown("### 🔗 Link AI")
+    # Botón Nuevo Chat con icono grande
+    if st.button("＋", use_container_width=True, help="Nuevo Chat"):
         st.session_state.current_session_id = None
         st.rerun()
-    st.markdown("---")
     
+    st.markdown("---")
     conn = sqlite3.connect('linkai_pro.db')
-    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 10", (st.session_state.username,)).fetchall()
+    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 12", (st.session_state.username,)).fetchall()
     for cid, title in chats:
-        # Título corto para que quepa en el sidebar
-        display_title = title[:20] + "..." if len(title) > 20 else title
-        if st.button(f"💬 {display_title}", key=f"c_{cid}", use_container_width=True):
+        # Icono de mensaje minimalista antes del texto
+        if st.button(f"󰭹 {title[:15]}...", key=f"c_{cid}", use_container_width=True):
             st.session_state.current_session_id = cid
             st.rerun()
-            
-    st.markdown("---")
-    if st.button("Cerrar Sesión"):
-        st.session_state.logged_in = False
-        st.rerun()
 
-# --- 6. CHAT PRINCIPAL ---
-st.markdown("<h1 style='text-align:center;'>Link AI Explorer</h1>", unsafe_allow_html=True)
-
-# Cargar mensajes de la base de datos
+# --- 7. CHAT ---
 if st.session_state.get("current_session_id"):
     conn = sqlite3.connect('linkai_pro.db')
     msgs = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
     for r, c in msgs:
         with st.chat_message(r): st.markdown(c)
+else:
+    # Pantalla de bienvenida minimalista
+    st.markdown(f"<div style='text-align:center; margin-top:25vh; color:#666;'><h2>Hola, {st.session_state.username}</h2><p>Inicia una conversación con Link AI</p></div>", unsafe_allow_html=True)
 
-# Entrada de usuario
+# Entrada de chat con botón de enviar icono blanco
 if prompt := st.chat_input("Escribe a Link AI..."):
     conn = sqlite3.connect('linkai_pro.db')
-    
-    # Si es un chat nuevo, crear sesión
     if not st.session_state.get("current_session_id"):
-        title = prompt[:30]
-        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, title, datetime.now()))
+        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:20], datetime.now()))
         st.session_state.current_session_id = cursor.lastrowid
         conn.commit()
 
-    # Guardar mensaje del usuario
     with st.chat_message("user"): st.markdown(prompt)
     conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "user", prompt, datetime.now()))
     conn.commit()
 
-    # Generar respuesta de Link AI
     with st.chat_message("assistant"):
         ph = st.empty()
         full_res = ""
         try:
-            # Obtener los últimos 10 mensajes para dar contexto sin saturar la API (ahorro de tokens)
-            historial_db = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC LIMIT 10", (st.session_state.current_session_id,)).fetchall()
-            history = [{"role": "user" if r == "user" else "model", "parts": [c]} for r, c in historial_db[:-1]]
+            # Reconstruir historial (ventana de 8 mensajes)
+            hist_db = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC LIMIT 8", (st.session_state.current_session_id,)).fetchall()
+            history = [{"role": "user" if r == "user" else "model", "parts": [c]} for r, c in hist_db[:-1]]
             
             chat = model.start_chat(history=history)
             response = chat.send_message(prompt, stream=True)
-            
             for chunk in response:
                 if chunk.text:
                     full_res += chunk.text
                     ph.markdown(full_res + "▌")
             ph.markdown(full_res)
-            
-            # Guardar respuesta de la IA
             conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
             conn.commit()
-            
         except Exception as e:
             if "429" in str(e):
-                st.error("🚀 ¡Límite de velocidad alcanzado! Espera 60 segundos. Google regenerará tus tokens pronto.")
+                st.error("🚀 Límite alcanzado. Espera 60s.")
             else:
-                st.error(f"Error de conexión: {e}")
+                st.error(f"Error: {e}")
