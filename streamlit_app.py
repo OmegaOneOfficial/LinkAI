@@ -1,56 +1,59 @@
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 
-# Show title and description.
-st.title("💬 Chatbot")
+# Configuración de la página
+st.set_page_config(page_title="Gemini Chatbot", page_icon="♊")
+
+st.title("♊ Mi IA Gemini")
 st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+    "Este es un chatbot que utiliza el modelo **Gemini 1.5 Flash** de Google. "
+    "He configurado tu API Key directamente en el código."
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Configuración de la API Key que proporcionaste
+# Nota: Recuerda borrar el mensaje anterior donde pusiste la clave por seguridad.
+GEMINI_API_KEY = "AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug"
+genai.configure(api_key=GEMINI_API_KEY)
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Inicializar el modelo
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# El historial de Gemini usa "model" en vez de "assistant"
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Mostrar mensajes previos
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# Entrada de chat
+if prompt := st.chat_input("¿En qué puedo ayudarte?"):
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Mostrar mensaje del usuario
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+    # Generar respuesta
+    with st.chat_message("assistant"):
+        # Preparamos el historial para Gemini (cambiando assistant por model)
+        history_for_gemini = [
+            {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
+            for m in st.session_state.messages[:-1]
+        ]
+        
+        chat = model.start_chat(history=history_for_gemini)
+        
+        # Usamos stream para que la respuesta aparezca poco a poco
+        response = chat.send_message(prompt, stream=True)
+        
+        # Función para iterar sobre el stream y mostrarlo en Streamlit
+        def stream_generator():
+            for chunk in response:
+                yield chunk.text
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        full_response = st.write_stream(stream_generator())
+    
+    # Guardar la respuesta completa en el historial
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
