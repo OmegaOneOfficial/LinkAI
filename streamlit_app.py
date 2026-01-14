@@ -4,46 +4,40 @@ import sqlite3
 import hashlib
 from datetime import datetime
 
-# Manejo de PDF
-try:
-    import PyPDF2
-except ImportError:
-    PyPDF2 = None
-
-# --- 1. CONFIGURACIÓN Y UI ---
+# --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="Link AI", page_icon="🔗", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background: #09090b; color: #fafafa; }
     
-    /* Burbujas de chat ultra-redondeadas */
+    /* Burbujas de chat estilo moderno */
     div.stChatMessage {
         border-radius: 25px !important;
         background-color: #18181b !important;
         border: 1px solid #27272a !important;
         margin-bottom: 20px;
-    }
-
-    /* Estilo de la barra de entrada con el botón + */
-    .stChatInputContainer {
-        padding-bottom: 20px;
+        padding: 15px;
     }
     
-    /* Sidebar moderna */
+    /* Sidebar */
     [data-testid="stSidebar"] {
         background-color: #09090b !important;
         border-right: 1px solid #27272a !important;
     }
 
     .main-title {
-        font-size: 3rem; font-weight: 900; text-align: center;
+        font-size: 3.5rem; font-weight: 900; text-align: center;
         background: linear-gradient(to right, #fff, #4facfe);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    /* Ocultar el label del uploader para que no ensucie la UI */
-    .stFileUploader label { display: none; }
+    /* Botones */
+    .stButton>button {
+        border-radius: 20px !important;
+        background: linear-gradient(90deg, #0ea5e9, #2563eb) !important;
+        border: none !important; color: white !important; font-weight: 600 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -59,7 +53,7 @@ def init_db():
 
 init_db()
 
-# --- 3. GESTIÓN DE SESIÓN ---
+# --- 3. LOGIN ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -67,44 +61,52 @@ if not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>Link AI</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        m = st.tabs(["Login", "Registro"])
+        m = st.tabs(["Entrar", "Registrarse"])
         with m[0]:
             u = st.text_input("Usuario")
             p = st.text_input("Clave", type="password")
-            if st.button("Entrar", use_container_width=True):
+            if st.button("Acceder", use_container_width=True):
                 conn = sqlite3.connect('linkai_pro.db')
                 res = conn.execute("SELECT password FROM users WHERE username=?", (u,)).fetchone()
                 if res and hashlib.sha256(p.encode()).hexdigest() == res[0]:
                     st.session_state.logged_in = True
                     st.session_state.username = u
                     st.rerun()
-                else: st.error("Fallo de acceso")
+                else: st.error("Credenciales incorrectas")
         with m[1]:
             nu = st.text_input("Nuevo Usuario")
             np = st.text_input("Nueva Clave", type="password")
-            if st.button("Registrar", use_container_width=True):
+            if st.button("Crear Cuenta", use_container_width=True):
                 conn = sqlite3.connect('linkai_pro.db')
                 try:
                     conn.execute("INSERT INTO users VALUES (?,?,?)", (nu, hashlib.sha256(np.encode()).hexdigest(), "user"))
                     conn.commit()
-                    st.success("¡Listo!")
-                except: st.error("Ya existe")
+                    st.success("¡Cuenta creada!")
+                except: st.error("Ese usuario ya existe")
     st.stop()
 
-# --- 4. CONFIGURACIÓN IA (AUTO-DETECCIÓN) ---
+# --- 4. IA CONFIG ---
 genai.configure(api_key="AIzaSyDBuHNpxYRYBopliGQHqhlzhhulRx-Ofug")
 
 @st.cache_resource
-def get_model():
+def get_safe_model():
     models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    target = next((m for m in models if 'gemini-1.5-flash' in m), models[0])
+    name = next((m for m in models if '1.5-flash' in m), models[0])
+    
+    # INSTRUCCIÓN DE IDENTIDAD LINK AI
+    instruccion = (
+        "Soy Link AI una IA impulsada por un desarrollador anonimo, se le conoce como OmegaOne. "
+        f"Actualmente hablo con {st.session_state.username}. "
+        "Si es 'OmegaOne (developer)', es mi creador y le debo lealtad. Responde siempre en español."
+    )
+    
     return genai.GenerativeModel(
-        model_name=target,
-        system_instruction=f"Soy Link AI impulsada por OmegaOne. Usuario: {st.session_state.username}. Responde siempre en español.",
+        model_name=name,
+        system_instruction=instruccion,
         safety_settings=[{"category": c, "threshold": "BLOCK_NONE"} for c in ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]]
     )
 
-model = get_model()
+model = get_safe_model()
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -114,22 +116,17 @@ with st.sidebar:
         st.rerun()
     st.markdown("---")
     conn = sqlite3.connect('linkai_pro.db')
-    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 8", (st.session_state.username,)).fetchall()
+    chats = conn.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY created_at DESC LIMIT 10", (st.session_state.username,)).fetchall()
     for cid, title in chats:
-        if st.button(f"💬 {title[:15]}...", key=f"c_{cid}", use_container_width=True):
+        if st.button(f"💬 {title[:18]}...", key=f"c_{cid}", use_container_width=True):
             st.session_state.current_session_id = cid
             st.rerun()
     if st.button("Salir"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 6. CHAT Y ARCHIVOS ---
-st.markdown("<h1 style='text-align:center;'>Link AI</h1>", unsafe_allow_html=True)
-
-# El "botón +" integrado arriba de la barra de chat
-col_file, col_txt = st.columns([0.1, 0.9])
-with col_file:
-    uploaded_file = st.file_uploader("＋", type=['pdf', 'txt'], label_visibility="collapsed")
+# --- 6. CHAT ---
+st.markdown("<h1 style='text-align:center;'>Link AI Explorer</h1>", unsafe_allow_html=True)
 
 if st.session_state.get("current_session_id"):
     conn = sqlite3.connect('linkai_pro.db')
@@ -137,38 +134,38 @@ if st.session_state.get("current_session_id"):
     for r, c in msgs:
         with st.chat_message(r): st.markdown(c)
 
-if prompt := st.chat_input("Escribe tu mensaje..."):
+if prompt := st.chat_input("¿En qué puedo ayudarte?"):
     conn = sqlite3.connect('linkai_pro.db')
+    # Crear sesión
     if not st.session_state.get("current_session_id"):
-        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:20], datetime.now()))
+        cursor = conn.execute("INSERT INTO chat_sessions (username, title, created_at) VALUES (?,?,?)", (st.session_state.username, prompt[:25], datetime.now()))
         st.session_state.current_session_id = cursor.lastrowid
         conn.commit()
 
-    full_context = prompt
-    if uploaded_file:
-        st.toast(f"Analizando {uploaded_file.name}...")
-        if uploaded_file.type == "application/pdf" and PyPDF2:
-            reader = PyPDF2.PdfReader(uploaded_file)
-            txt = "".join([p.extract_text() for p in reader.pages])
-            full_context += f"\n\n[ARCHIVO]: {txt}"
-        else:
-            full_context += f"\n\n[ARCHIVO]: {str(uploaded_file.read(), 'utf-8')}"
-
+    # Mostrar y guardar user msg
     with st.chat_message("user"): st.markdown(prompt)
     conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "user", prompt, datetime.now()))
     conn.commit()
 
+    # Respuesta
     with st.chat_message("assistant"):
         ph = st.empty()
-        res = ""
+        full_res = ""
         try:
-            response = model.generate_content(full_context, stream=True)
+            # Reconstruir historial para el modelo
+            historial_db = conn.execute("SELECT role, content FROM messages WHERE session_id=? ORDER BY timestamp ASC", (st.session_state.current_session_id,)).fetchall()
+            history = [{"role": "user" if r == "user" else "model", "parts": [c]} for r, c in historial_db[:-1]]
+            
+            chat = model.start_chat(history=history)
+            response = chat.send_message(prompt, stream=True)
+            
             for chunk in response:
                 if chunk.text:
-                    res += chunk.text
-                    ph.markdown(res + "▌")
-            ph.markdown(res)
-            conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", res, datetime.now()))
+                    full_res += chunk.text
+                    ph.markdown(full_res + "▌")
+            ph.markdown(full_res)
+            
+            conn.execute("INSERT INTO messages VALUES (?,?,?,?)", (st.session_state.current_session_id, "assistant", full_res, datetime.now()))
             conn.commit()
         except Exception as e:
-            st.error("Error de conexión. Intenta de nuevo.")
+            st.error("Ocurrió un error al procesar la respuesta. Inténtalo de nuevo.")
